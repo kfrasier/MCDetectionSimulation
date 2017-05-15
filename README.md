@@ -8,7 +8,7 @@ The starting point is:
 Parameter choices are selected in: 
       `clickmethod_settings.m`
 
-An example transmission loss profile (32 radials) is: `DT07B_32_3DTL_2.mat`
+An example transmission loss profile (32 radials) is: `DT07B_8radial_3DTL.mat`
 
 ### More complexity: 
 There are lots of additional layers of complexity that have not (yet?) been implemented here. 

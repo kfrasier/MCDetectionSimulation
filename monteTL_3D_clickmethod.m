@@ -22,14 +22,18 @@
 
 clearvars
 
+% add paths to other scripts
+addpath(genpath(fileparts(mfilename('fullpath'))))
+
 % load user settings
-[species,site,outDir,p] = clickmethod_settings;
+[species,site,outDir,siteDepth,p] = clickmethod_settings;
 
 if ~exist(outDir,'dir')
     mkdir(outDir)
 end
 
-% Build parameter distributions for all variable means
+% Build parameter distributions for all variable means and variances
+% 
 SLmeanDiff = p.SL_mean(2) - p.SL_mean(1);
 SLmean = p.SL_mean(1) + SLmeanDiff*rand(p.n,1);
 
@@ -42,107 +46,123 @@ directivity =  p.directivity(1) + directivityDiff*rand(p.n,1);
 zAngleStdDiff = p.zAngle_std(2) - p.zAngle_std(1);
 zAngleStd = p.zAngle_std(1) + zAngleStdDiff*rand(p.n,1);
 
-if strcmpi(p.diveType ,'surfaceSkew')
+if strcmpi(p.diveType ,'surfaceSkew') % TODO : implement mean depth and near bottom options
     diveMeanDiff = p.DiveDepth_mean(2) - p.DiveDepth_mean(1);
     diveZmean = p.DiveDepth_mean(1) + diveMeanDiff*rand(p.n,1); % mean dive depth, lognormal,
     
     diveMeanDiff = p.DiveDepth_std(2) - p.DiveDepth_std(1);
-    diveZstd = p.DiveDepth_std(1) + diveMeanDiff*rand(p.n,1);%
-    maxDiveDepth = p.maxDiveDepth;
+    diveZstd = p.DiveDepth_std(1) + diveMeanDiff*rand(p.n,1); % sigma dive depth, lognormal
+    
+    maxDiveDepthDiff = p.maxDiveDepth(2) - p.maxDiveDepth(1); % uniform distribution
+    maxDiveDepth = p.maxDiveDepth(1) + maxDiveDepthDiff*rand(p.n,1);
+% elseif strcmpi(p.diveType ,'meanDepth')
+% elseif strcmpi(p.diveType ,'nearBottom')
+% else 
+%      error(['Unknown dive type specified. Options are ''surfaceSkew'', ''meanDepth''',...
+%       'or ''nearBottom'''])
 end
 
+% amplitude at 90 deg off-axis
 amp90diff = p.amplitude90_mean(2) - p.amplitude90_mean(1);
 minAmp90mean = p.amplitude90_mean(1) + amp90diff*rand(p.n,1); % minimum off-axis dBs down from peak
 
+% amplitude at 180 deg off-axis
 amp180diff = p.amplitude180_mean(2) - p.amplitude180_mean(1);
 minAmpBack_mean = p.amplitude180_mean(1) + amp180diff*rand(p.n,1); % minimum off-axis dBs down from peak
 
+% Load transmission loss data
 load(p.polarFile)
-rd_all = rd_all(IX);
-[filePath]=fileparts(p.polarFile);
-cd(filePath)
 
-% ESME models put TL as inf in first bin. Replace with 2nd bin values. 
+% ESME models put TL as inf in first bin. Replace with 2nd bin values, for all
+% radials
 for itrTL = 1:size(sortedTLVec,2)
     sortedTLVec{itrTL} = real([sortedTLVec{itrTL}(:,2),sortedTLVec{itrTL}(:,2:end)]);
 end
 
+% Calculate  step sizes and initialize some variables
 numAngle = length(thisAngle);
+rr_int = round(rr(2)-rr(1)); % figure out what the range step size is
+nrr_new = rr_int*nrr;
+rr_new = 0:rr_int:nrr_new; % What are the real values of the range vector? (in m)
+pDetTotal = nan(p.n,1);
+binVec = 0:p.radialStepSz:p.maxRange;
+angleVec = 0:90;
+binnedPercDet = nan(p.n,length(binVec)-1);
+binDetStore = zeros(numAngle,length(binVec)-1);
+binTotStore = zeros(numAngle,length(binVec)-1);
+
 
 % initialize holding spaces if you're trying to understand the distributions
-% across iterations. Takes up some space.
-if groundtruth
+% across iterations. Takes up some space. Doesn't preallocate at the moment, 
+% because final sizes are unknown...
+if p.storeDistributions
     maxRLhist = round(norminv(.9,p.SL_mean(2),p.SL_std(2)));
     minSLhist = round(norminv(.1,p.SL_mean(1),p.SL_std(2))...
         -p.amplitude180_mean(2));
     maxSLhist = round(norminv(.9,p.SL_mean(2),p.SL_std(2)));
-    RLStore = [];
-    SLStore = [];
-    elevStore = [];
-    hRngStorehist = [];
-    minSL = [];
-    maxSL = [];
-    maxRL = [];
-    meanRL = [];
-    meanHRng = [];
-    meanSL = [];
-    maxHRng = [];
-    minHRng = [];
-end
-rr_int = round(rr(2)-rr(1)); % figure out what the range step size is
-nrr_new = rr_int*nrr;
-rr_new = 0:rr_int:nrr_new; % What are the real values of the range vector? (in m)
-pDetTotal = nan(n,1);
-binVec = 0:radialStepSz:maxRange;
-binnedPercDet = nan(n,length(binVec)-1);
-binDetStore = zeros(numAngle,length(binVec)-1);
-binTotStore = zeros(numAngle,length(binVec)-1);
+    SLbins = minSLhist:maxSLhist;
+    RLbins = p.thresh:maxRLhist;
 
-for nI = 1:n  % number of simulations loop; can be parfor
+    RLStore = nan(p.n,length(RLbins));
+    SLStore = nan(p.n,length(SLbins));
+    hRngStoreHist = nan(p.n,length(binVec));
+    elevStore = nan(p.n,length(angleVec));
+    minSL = nan(p.n,1);
+    maxSL = nan(p.n,1);
+    maxRL = nan(p.n,1);
+    meanRL = nan(p.n,1);
+    meanHRng = nan(p.n,1);
+    meanSL = nan(p.n,1);
+    maxHRng = nan(p.n,1);
+    minHRng = nan(p.n,1);
+end
+
+
+
+for nI = 1:p.n  % number of simulations loop ('outer loop'); can be parfor
     if rem(nI,100) == 0
-        fprintf('TL computation %d of %d\n', nI, n)
+        fprintf('Running simulation %d of %d\n', nI, p.n)
     end
     
     %%%%% Location Computation %%%%%
-    % rand location
-    randVec = ceil(rand(2,N)'.*repmat([2*maxRange, 2*maxRange], [N, 1]))...
-        - repmat([maxRange, maxRange], [N, 1]);
+    % Select random locations
+    randVec = ceil(rand(2,p.N)'.*repmat([2*p.maxRange, 2*p.maxRange], [p.N, 1]))...
+        - repmat([p.maxRange, p.maxRange], [p.N, 1]);
     [theta, rho] = cart2pol(randVec(:,1),randVec(:,2));  % convert to polar coord.
     
-    % trim out the locations that are beyond the max range (corners of the
-    % 2*maxRange X 2*maxRange square, since now we are using a pi*maxRange^2
+    % Trim out the locations that are beyond the max range (corners of the
+    % 2*maxRange x 2*maxRange square, since now we are using a pi*maxRange^2
     % circle)
-    jjj = 1;
+    J = 1;
     rho2 = [];
     theta2 = [];
-    for iii = 1:length(rho)
-        if rho(iii) < maxRange
-            rho2(jjj,1) = rho(iii);
-            theta2(jjj,1) = theta(iii);
-            jjj = jjj+1;
+    for I = 1:length(rho)
+        if rho(I) < p.maxRange
+            rho2(J,1) = rho(I);
+            theta2(J,1) = theta(I);
+            J = J+1;
         end
     end
     thetaDeg = 180 + (theta2*180/pi);
     
-    % go from angle to ref indices - pulled this into a function
-    % because it happens a few times.
+    % Go from angle to vector indices
     [angleRef,radRef] = angle_ref_comp(thetaDeg,rho2,thisAngle);
     
     
     %%%%% Depth Computation %%%%%
-    % Choose dive depths:
+    % Choose dive depths, truncate at max dive depth:
     tooDeep = 1:length(rho2);
-    diveDepthRef = [];
+    diveDepthRef = zeros(size(tooDeep'));
     while ~isempty(tooDeep)
         diveDepthRef(tooDeep,1) = ceil(lognrnd(diveZmean(nI),diveZstd(nI),size(tooDeep)));
-        tooDeep = find(diveDepthRef>maxDiveDepth);
+        tooDeep = find(diveDepthRef>maxDiveDepth(nI));
     end
     
     %%%%% Beam Angle Computation %%%%%
     % Assign random beam orientation in horizontal (all orientations equally likely)
     randAngleVec = ceil(rand(size(rho2)).*359);
     
-    %%%%% Transmission loss (TL) Computation %%%%%
+    %%%%% Transmission Loss (TL) Computation %%%%%
     % Note, due to computation limitations, directivity does not vary by individual.
     % The beam pattern is considered to be the same for all individuals within an iteration.
     % Compute beam pattern:
@@ -159,7 +179,7 @@ for nI = 1:n  % number of simulations loop; can be parfor
         % Compute location of this animal in the transmission loss matrix:
         % Find which row you want to look at:
         thisRd = rd_all{angleRef(itr2)};
-        while diveDepthRef(itr2)> maxDiveDepth || diveDepthRef(itr2)>= max(thisRd)
+        while (diveDepthRef(itr2)> maxDiveDepth(nI)) || (diveDepthRef(itr2)>= max(thisRd))
             diveDepthRef(itr2) = ceil(lognrnd(diveZmean(nI),diveZstd(nI),1));
         end
         [~,thisDepthIdx] = min(abs(thisRd - round(diveDepthRef(itr2))));
@@ -181,7 +201,8 @@ for nI = 1:n  % number of simulations loop; can be parfor
     end
     zAngle_1  = ceil(abs(atand(dZ./radRef))+ zAngleStd(nI,1)*randAng);
     zAngle = make360(zAngle_1); % wrap and concat
-    % clear zAngle_1
+    clear zAngle_1
+    
     % Using vertical and horizontal off axis components, compute beam
     % related transmission loss
     beamTL = zeros(size(zAngle));
@@ -190,12 +211,15 @@ for nI = 1:n  % number of simulations loop; can be parfor
     end
     % Add up all the sources of TL
     RL = SL - beamTL - distTL;
+    isheard = RL >= p.thresh;
+
+    % Could incorporate noise here
     % noiseVec = gevrnd(noiseK,noiseSigma,noiseMu,size(RL));
     % noiseVec = noiseMean + noiseStd*randn(size(RL));
     % snr = RL - noiseVec;
+    % isheard = snr >= snrThresh; % alternate for noise
+
     % Is the RL above the detection threshold?
-    isheard = RL >= thresh;
-    % isheard = snr >= snrThresh;
     pDetTotal(nI,1) = sum(isheard)./length(isheard)';
     totalSimDist = rho2;
     totalSimAngle = make360(thetaDeg);
@@ -203,13 +227,12 @@ for nI = 1:n  % number of simulations loop; can be parfor
     detSimAngle = totalSimAngle(isheard==1);
     
     % Compute detections in range bins, so you can make a histogram if desired
-    % Makes more sense for click-based model
     % preallocate
     binTot = zeros(numAngle-1,length(binVec)-1);
     binDet = zeros(numAngle-1,length(binVec)-1);
     thisAngle360 = [thisAngle,360];
     for itr3 = 1:length(binVec)-1
-        for itr4 = 1:numAngle;
+        for itr4 = 1:numAngle
             distSetTotal = find(totalSimDist>=binVec(itr3) & totalSimDist<binVec(itr3 +1));
             angleSetTotal = find(totalSimAngle>=thisAngle360(itr4) & totalSimAngle<thisAngle360(itr4+1));
             binTot(itr4,itr3) = length(intersect(distSetTotal,angleSetTotal));
@@ -225,108 +248,144 @@ for nI = 1:n  % number of simulations loop; can be parfor
     binTotStore = binTotStore + binTot;
     % save the bin counts to the overall set, so you can get means and variances per bin.
     binnedPercDet(nI,:) = thisPercent';
-    if groundtruth
-        RLcounts = histc(RL(~isinf(RL)),thresh:maxRLhist)';
-        RLStore= [RLStore;RLcounts./sum(RLcounts)];
-        SLcounts = histc(SL(RL>=thresh)-beamTL(RL>=thresh),...
-            minSLhist:maxSLhist)';
-        SLStore = [SLStore;SLcounts./sum(SLcounts)];
+    
+    if p.storeDistributions
+        
+        % Store recieved level distribution for this iteration
+        RLcounts = histc(RL(~isinf(RL)),p.thresh:maxRLhist)'; % calculate histogram of RLs (includes undetected)
+        RLkeepIdx = RL>=p.thresh; % get indices of RLs exceeding threshold
+        RLStore(nI,:) = RLcounts./sum(RLcounts); % add to matrix where 
+        % each row is the RL distribution for a successive outer loop iteration
+        
+        % Store source level distribution for this iteration (SL is
+        % PERCIEVED SL, b/c it includes transmission loss)
+        SLcounts = histc(SL(RLkeepIdx)-beamTL(RLkeepIdx),...
+            minSLhist:maxSLhist)';       
+        SLStore(nI,:) = SLcounts./sum(SLcounts);
+        
+        % Store horizontal detection range distribution
         hRngCounts = histc(detSimDist,binVec);
-        hRngStorehist = [hRngStorehist;hRngCounts./sum(hRngCounts)];
-        elevCount = histc(atand(siteDepth./detSimDist),0:90);
-        elevStore = [elevStore;elevCount];
-        meanSL = [meanSL,mean(SL(RL>=thresh)-beamTL(RL>=thresh))];
-        meanRL = [meanRL,mean(RL(RL>=thresh))];
-        meanHRng = [meanHRng,mean(detSimDist)];
-        maxSL = [maxSL,max(SL(RL>=thresh)-beamTL(RL>=thresh))];
-        minSL = [minSL,min(SL(RL>=thresh)-beamTL(RL>=thresh))];
-        maxRL = [maxRL,max(RL(~isinf(RL)))];
-        maxHRng = [maxHRng,max(detSimDist)];
-        minHRng = [minHRng,min(detSimDist)];
+        hRngStoreHist(nI,:) = hRngCounts./sum(hRngCounts);
+        
+        % Store distribution of detection elevation angle relative to sensor        
+        elevCount = histc(atand(siteDepth./detSimDist),angleVec);
+        elevStore(nI,:) = elevCount;
+        
+        % Store mean values of various params
+        meanSL(nI,1) = mean(SL(RLkeepIdx)-beamTL(RLkeepIdx));
+        meanRL(nI,1) = mean(RL(RLkeepIdx));
+        meanHRng(nI,1) = mean(detSimDist);
+        maxSL(nI,1) = max(SL(RLkeepIdx)-beamTL(RLkeepIdx));
+        minSL(nI,1) = min(SL(RLkeepIdx)-beamTL(RLkeepIdx));
+        maxRL(nI,1) = max(RL(~isinf(RL)));
+        maxHRng(nI,1) = max(detSimDist);
+        minHRng(nI,1) = min(detSimDist);
     end
 end % end model iteration n
 
-if plotFlag
+if p.plotFlag
+    % Plod birdseye view of detection range around sensor
     figure(1); clf;
     bullseye_pDet(binDetStore./binTotStore,'N',10,'tht',[0 360]);
     hold on
     plot(0,0,'^k')
     hold off
-    figName1 = fullfile(outDir,sprintf('%s_%s_itr%d_ClickModel_bullseye_test',site,species,varVal));
+    figName1 = fullfile(outDir,sprintf('%s_%s_itr%d_ClickModel_bullseye_test',site,species,p.n));
     print(1,'-dpng','-r600', [figName1,'.png'])
     saveas(1, [figName1,'.fig'])
     
     % Histogram of detectability as a function of range
-    spots = binVec(1:end-1)+(radialStepSz/2);
-    areas = ((binVec(2:end).^2)*pi)-((binVec(1:end-1).^2)*pi);
-    means = nanmean(binnedPercDet);
-    means_keep = (means>0);
-    spots = spots(means_keep);
-    means = means(means_keep);
-    areas = areas(means_keep);
-    errsTop = nanstd(binnedPercDet(:,means_keep));
+    rangeVals = binVec(1:end-1)+(p.radialStepSz/2);
+    sliceAreas = ((binVec(2:end).^2)*pi)-((binVec(1:end-1).^2)*pi);
+    meanPdet = nanmean(binnedPercDet);
+    meanPdet_keep = (meanPdet>0);
+    rangeVals = rangeVals(meanPdet_keep);
+    meanPdet = meanPdet(meanPdet_keep);
+    sliceAreas = sliceAreas(meanPdet_keep);
+    errsTop = nanstd(binnedPercDet(:,meanPdet_keep));
     errsBot = errsTop;
-    toobig = (errsTop + means)>1;
-    toosmall = (means - errsBot)<0;
-    errsTop(toobig) = 1-means(toobig);
-    errsBot(toosmall) = -(0-means(toosmall));
-    
-    figure(2); clf
-    bar(spots,means,1,'FaceColor',[.9,.9,.9])
+    toobig = (errsTop + meanPdet)>1;
+    toosmall = (meanPdet - errsBot)<0;
+    errsTop(toobig) = 1-meanPdet(toobig);
+    errsBot(toosmall) = -(0-meanPdet(toosmall));
+       
+    % Plot horizontal detection range distributions
+    figure(2); clf;
+    bar(rangeVals,meanPdet,1,'FaceColor',[.9,.9,.9])
     set(gca,'FontSize',11)
     hold on
-    errorbar(spots,means,errsBot,errsTop,'*k')
+    errorbar(rangeVals,meanPdet,errsBot,errsTop,'*k')
     set(gca,'XTick',binVec(1:5:end))
     set(gca,'XTickLabel',binVec(1:5:end)/1000)
     xlabel(gca,'Horizontal Range (km)','FontSize',12)
     ylabel(gca, 'Probability of Detection','FontSize',12)
     % title({polarFile; sprintf('mean P(det) = %f; std = %f', nanmean(pDetTotal), nanstd(pDetTotal))})
-    xlim([0,6000])
-    figName2 = fullfile(outDir,sprintf('%s_%s_itr%d_ClickModel_pdet_test',site,species,varVal));
+    xlim([0,p.maxRange])
+    figName2 = fullfile(outDir,sprintf('%s_%s_itr%d_ClickModel_pdet_test',site,species,p.n));
     print(2,'-dpng','-r600', [figName2,'.png'])
     saveas(2, [figName2,'.fig'])
     
-    meansA = means.*areas;
+    % Plot horizontal detection range distributions
+    meansA = meanPdet.*sliceAreas;
     sumMA = sum(meansA);
     meansMAsum = meansA./sumMA;
-    std1 = meansA+(errsBot.*areas);
-    std2 = meansA-(errsBot.*areas);
-    stdMAsum1 = std1./sum(std1);
-    stdMAsum2 = std2./sum(std2);
+    stdMa = errsBot.*sliceAreas;
+    stdMAsum1 = (meansA+stdMa)./sum(meansA+stdMa);
+    stdMAsum2 = (meansA-stdMa)./sum(meansA-stdMa);
     figure(3); clf
-    bar(spots,meansMAsum,'FaceColor',[.9,.9,.9])
+    bar(rangeVals,meansMAsum,'FaceColor',[.9,.9,.9])
+    hold on
+    plot(rangeVals,[stdMAsum1;stdMAsum2],'--k','linewidth',2)
+    hold off
     set(gca,'FontSize',11,'XTick',binVec(1:5:end),'XTickLabel',binVec(1:5:end)./1000)
     xlabel(gca,'Horizontal Range (km)','FontSize',12)
     ylabel(gca, '% of detections','FontSize',12)
-    xlim([0,6000])
+    xlim([0,p.maxRange])
+    legend('Mean','+/- 1 Std. Dev.')
     % title({polarFile; sprintf('mean P(det) = %f; std = %f', nanmean(pDetTotal), nanstd(pDetTotal))})
-    figName3 = fullfile(outDir,sprintf('%s_%s_%d_ClickModel_pdetNorm_test',site,species,varVal));
+    figName3 = fullfile(outDir,sprintf('%s_%s_%d_ClickModel_pdetNorm_test',site,species,p.n));
     print(3,'-dpng','-r600',[figName3,'png'])
     saveas(3,[figName3,'fig'])
     
-    if groundtruth
+    if p.storeDistributions
+        % Plot modeled RL distributions
         figure(4);clf;
-        edgesRL = thresh:1:180;
         meanRLstore = mean(RLStore);
         sumNRL = sum(meanRLstore);
-        nRL_norm = meanRLstore./sumNRL;
-        stdRL_norm = [(meanRLstore+std(RLStore))./sum(meanRLstore+std(meanRLstore));
-            max(meanRLstore-std(RLStore),0)./sum(max(meanRLstore-std(meanRLstore),0))];
+        nRL_norm = meanRLstore./sumNRL;        
+        xVals = p.thresh:maxRLhist;        
+        stdRL_norm = [(meanRLstore+std(RLStore))./sum(meanRLstore+std(RLStore));
+            max(meanRLstore-std(RLStore),0)./sum(max(meanRLstore-std(RLStore),0))];
+        bar(xVals,nRL_norm)
+        hold on
+        plot(xVals,stdRL_norm,'--k','linewidth',2)
+        xlim([p.thresh-1,xVals(find(nRL_norm>0,1,'last'))+1])
+        xlabel('RL [dBpp re: 1uPa]','FontSize',12)
+        ylabel('% of detections','FontSize',12)
+        legend('Mean','+/- 1 Std Dev.')
+        figName4 = fullfile(outDir,sprintf('%s_%s_itr%d_ClickModel_RLDist', site,species,p.n));
+        print(4,'-dpng','-r600',[figName4,'png'])
+        saveas(4,[figName4,'fig'])
+       
+        % Plot estimated SL distributions
+        figure(5);clf;
         meanSLstore = mean(SLStore);
+        sumNSL = sum(meanSLstore);
         nSL_norm = meanSLstore./sum(meanSLstore);
         stdSL_norm = [(meanSLstore+std(SLStore))./sum(meanSLstore+std(SLStore));
             max((meanSLstore-std(SLStore)),0)./sum(max(meanSLstore-std(SLStore),0))];
-        bar(edgesRL+1,nRL_norm)
-        xlim([thresh,170])
-        xlabel('RL [dBpp re: 1uPa]','FontSize',12)
+        xValsSL = minSLhist:maxSLhist;
+        bar(xValsSL,nSL_norm)
+        hold on
+        plot(xValsSL,stdSL_norm,'--k','linewidth',2)
+        xlabel('SL [dBpp re: 1uPa]','FontSize',12)
         ylabel('% of detections','FontSize',12)
-        figName4 = fullfile(outDir,sprintf('%s_%s_itr%d_ClickModel_RLDist', site,species,varVal));
-        print(4,'-dpng','-r600',[figName4,'png'])
-        saveas(4,[figName4,'fig'])
+        legend('Mean','+/- 1 Std Dev.')
+        figName5 = fullfile(outDir,sprintf('%s_%s_itr%d_ClickModel_SLDist', site,species,p.n));
+        print(5,'-dpng','-r600',[figName5,'png'])
+        saveas(5,[figName5,'fig'])
     end
-    
 end
 
-
-% save datafile
-save(fullfile(outDir,sprintf('%s_%s_itr%d_ClickModel_newDI.mat',site,species,varVal)),'-mat')
+% save all generated data to file
+save(fullfile(outDir,sprintf('%s_%s_itr%d_ClickModel_newDI.mat',site,species,p.n)),'-mat')
