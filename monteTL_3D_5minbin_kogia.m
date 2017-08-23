@@ -278,7 +278,7 @@ for itSp = 1:length(spVec)
         ylabel(gca, 'Probability of Detection (%)','FontSize',14)
         title({sprintf('Max Horiz. Range = %dm; mean P(det) = %1.2f%%; std = %1.2f%%', ...
             maxRange, nanmean(pDetTotal)*100, nanstd(pDetTotal)*100)},'FontSize',14)
-        print(gcf,'-dpng','-r600',['E:\Data\John Reports\MC_kogia\',site,'_',species,'_grpMod_pDet.png'])
+        print(gcf,'-dpng','-r600',fullfile(saveDir,[site,'_',species,'_grpMod_pDet.png']))
         saveas(gca,fullfile(saveDir,[site,'_',species,'_grpMod_pDet.fig']))
         
         
