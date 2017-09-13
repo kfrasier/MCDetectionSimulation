@@ -17,8 +17,8 @@ clearvars
 %     matlabpool close force
 %     matlabpool
 % end
-TLprofile_directory = 'E:\ESME_4seasons\';
-saveDir = 'E:\Data\John Reports\MC_kogia\';
+TLprofile_directory = 'E:\JAH\Kogia\kogia_TL_models\';
+saveDir = 'E:\JAH\Kogia\Plots\';
 
 spVec = {'kogia'};
 siteVec = {'DT','GC','MC'};
@@ -46,7 +46,7 @@ for itSp = 1:length(spVec)
         % were not - file order issue, way back.
         
         n = 500; % the number of model runs that will feature in the probability distribution
-        N = 1000; % simulate this many points per model run
+        N = 10000; % simulate this many points per model run
 
         % variables to pick from a distribution for CV estimation
         diveDepth_mean = 700 + 100*rand(n,1); % mean dive altitude is somewhere between 175 and 225m
