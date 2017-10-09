@@ -95,20 +95,13 @@ for itSite = 1:length(siteVec)
     outdir = fileparts(polarFile);
     load(polarFile)
     numAngle = length(thisAngle);
-%     if ~exist('botDepthSort','var')
-%         botDepthSort = botDepth_interp(IX,:);
-%     end
-%     % sort the bottom vectors by increasing angle
-%     for preIt = 1:length(sortedTLVec)
-%         sortedTLVec{preIt}(:,1) = sortedTLVec{preIt}(:,2);
-%     end
     rr_int = round(rr(2)-rr(1)); % figure out what the range step size is
     nrr_new = rr_int*nrr;
     rr_new = 0:rr_int:nrr_new; % What are the real values of the range vector? (in m)
     pDetTotal = nan(n,1);
     binVec = 0:100:maxRange;
     binnedPercDet = nan(n,length(binVec)-1);
-    binnedCounts = nan(n,length(binVec)-1);
+    binnedCountsDet = nan(n,length(binVec)-1);
     % Load measured Percent PP by site
     if (strcmp(siteVec{1,itSite}, 'MC'));
         load('E:\JAH\Kogia\Detections\MC_Kogia\MC_Kogia_binlog.mat');
@@ -142,7 +135,7 @@ for itSite = 1:length(siteVec)
                     descAngle_std = descAngles(1) + descAngles(2)*rand(n,1); % std deviation of descent angle in deg, from tyack 2006 for blainvilles;
                     clickStart_mean = clickStartm(1) + clickStartm(2)*rand(n,1); % depth in meters at which clicking starts, from tyack 2006 for blainvilles;
                     clickStart_std =  clickStarts(1) + clickStarts(2)*rand(n,1); % depth in meters at which clicking starts, from tyack 2006 for Cuvier's - blainvilles was unbelievably large;
-                    directivity = directm(1) + directm(2)*rand(n,1); % directivity is between 25 and 27 dB PP (Zimmer et al 2005: Echolocation clicks of free-ranging Cuvier's beaked whales)
+                    %directivity = directm(1) + directm(2)*rand(n,1); % directivity is between 25 and 27 dB PP (Zimmer et al 2005: Echolocation clicks of free-ranging Cuvier's beaked whales)
                     descentPerc = descentPm(1) + descentPm(2)*rand(n,1);
                     %
                     minBeamAmp_mean = minBeamAmpm(1) + minBeamAmpm(2)*rand(n,1); % minimum off-axis dBs down from peak
@@ -296,7 +289,7 @@ for itSite = 1:length(siteVec)
                         % save the bin counts to the overall set, so you can get means and variances per bin.
                         binnedPercDet(itr_n,:) = thisPercent';
                         binnedCountsDet(itr_n,:) = binDet';
-                        binnedCountsTot(itr_n,:) = binTot';
+%                         binnedCountsTot(itr_n,:) = binTot';
                   
                     end
                   

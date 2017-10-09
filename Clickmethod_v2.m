@@ -10,16 +10,15 @@
 % level (RL), at which point a threshold is used to decide whether or not
 % the click is "heard".
 %}
-% close all
 tic
 clearvars
 %Parameters
 n = 500; % the number of model runs in the probability distribution
-N = 100000; % simulate this many points per model run usually 100000
+N = 1000; % simulate this many points per model run usually 100000
 maxRange = 1000; % in meters
 thresh = 132; % click detection threshold (amplitude in dB pp)
 RLbins = 120.5:1:190.5; % fix first bin by moving to integer
-fignum = 0; % if fignum = 0 make no figures
+fignum = 777; % if fignum = 0 make no figures
 spVec = {'kogia'}; itSp = 1; species = spVec{itSp};
 % Parameters that can have multiple values have %***
 diveDepth = [450,100]; %***
@@ -47,10 +46,10 @@ direct = [22,2]; %***
 % direct = [direct,dir2'];
 sdirect = size(direct);
 minAmpSm = [33,5]; minAmpBm = [38,5];
-%botAngle = [25,5]; %***
-botAngle = [15:1:45]'; %***
-    bot2 = 5*ones(1,length(botAngle));
-    botAngle = [botAngle,bot2'];
+botAngle = [20,5]; %***
+% botAngle = [15:5:45]'; %***
+%     bot2 = 5*ones(1,length(botAngle));
+%     botAngle = [botAngle,bot2'];
 sbotAngle  = size(botAngle);
 descentPm = [.10 , .05];
 %
@@ -61,21 +60,20 @@ if ~exist(saveDir,'dir')
     mkdir(saveDir)
 end
 siteVec = {'DT','GC','MC'};
+%siteVec = {'DT','GC'};
 % file with grid search results
 fnParms = fullfile(saveDir,sprintf('ClickModel_Parms_%s.txt',...
     species));
 fid = fopen(fnParms,'a');
 fprintf(fid,'\r\n Num Iterations = %10d',N);
 % Parameters that do not change in the loop
-% fprintf(fid,'\r\n %4d %4d %4d %4d',...
-%     SLm,SLs);
 fprintf(fid,'%4d %4d %4d %4d',...
     clickStartm,clickStarts);
 fprintf(fid,'%4d %4d %4d %4d %7.3f %7.3f',...
     minAmpSm,minAmpBm,descentPm);
 best = [1000]; %arbitrary large number
 %
-nsim = sdiveDepth(1) * sdescAngle(1) * sdirect(1) * sbotAngle(1);
+nsim = sdiveDepth(1) * siSL(1) * sdescAngle(1) * sdirect(1) * sbotAngle(1);
 dif = zeros(nsim,length(siteVec)); dif3 = zeros(nsim,1);
 pD = zeros(nsim,length(siteVec)); pDs = zeros(nsim,length(siteVec));
 for itSite = 1:length(siteVec)
@@ -87,19 +85,12 @@ for itSite = 1:length(siteVec)
     outdir = fileparts(polarFile);
     load(polarFile)
     numAngle = length(thisAngle);
-    %     if ~exist('botDepthSort','var')
-    %         botDepthSort = botDepth_interp(IX,:);
-    %     end
-    %     % sort the bottom vectors by increasing angle
-    %     for preIt = 1:length(sortedTLVec)
-    %         sortedTLVec{preIt}(:,1) = sortedTLVec{preIt}(:,2);
-    %     end
     rr_int = round(rr(2)-rr(1)); % figure out what the range step size is
     nrr_new = rr_int*nrr;
     rr_new = 0:rr_int:nrr_new; % Real values of the range vector? (in m)
     pDetTotal = nan(n,1);
     binVec = 0:100:maxRange;
-    binnedCounts = [];
+    binnedCountsDet = nan(n,length(binVec)-1); %binnedCounts = [];
     binnedPercDet = nan(n,length(binVec)-1);
     % Load measured Percent PP by site
     if (strcmp(siteVec{1,itSite}, 'MC'));
@@ -284,7 +275,7 @@ for itSite = 1:length(siteVec)
                             thisPercent = binDet./binTot;
                             % save the bin counts to the overall set, so you can get means and variances per bin.
                             binnedPercDet(itr_n,:) = thisPercent';
-                            binnedCounts(itr_n,:) = binDet';
+                            binnedCountsDet(itr_n,:) = binDet';
                             
                         end
                         
@@ -366,8 +357,8 @@ for itSite = 1:length(siteVec)
                             
                             % plot #det versus range
                             figure(fignum); fignum = fignum +1; clf;
-                            binCountMean = mean(binnedCounts);
-                            binCountStd = std(binnedCounts);
+                            binCountMean = mean(binnedCountsDet);
+                            binCountStd = std(binnedCountsDet);
                             binId = find(binCountMean-binCountStd<0);
                             binCountStdBot = binCountStd;
                             binCountStdBot(binId) = binCountMean(binId) ;
@@ -478,12 +469,12 @@ if (sdirect  > 1)
     subplot(2,1,1)
     plot(direct(:,1),dif3,'b--o')
     xlabel('directivity dB'); ylabel('Error');
-    ylabel('P(det)')
     subplot(2,1,2)
     for it = 1: length(siteVec)
         plot(direct(:,1),pD(:,it));
         hold on
     end
+    ylabel('P(det)')
     saveas(gca,fullfile(saveDir,[species,'_direct.fig']))
     save(fullfile(saveDir,sprintf('directClickModel_%dItr_%s.mat',...
         itr_n,species)),'-mat');

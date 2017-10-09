@@ -1,0 +1,33 @@
+function DifPlots(sParm,Parm)
+% Error plots
+global fignum siteVec dif itSite isim
+fignum = fignum +1;
+Parmstring = varname(Parm);
+if (sParm  > 1)
+    figure(fignum); fignum = fignum +1; clf;
+    subplot(3,1,1);
+    hold on
+    for itSite = 1:length(siteVec)
+        plot(Parm(:,1),dif(1:2:isim,itSite),'b--o');
+        plot(Parm(:,1),dif(2:2:isim,itSite),'r--o');
+        plot(Parm(:,1),...
+            dif(1:2:isim,itSite)+dif(2:2:isim,itSite),'k--o');
+    end
+    xlabel(Parmstring); 
+    ylabel(' Error');
+    subplot(3,1,2)
+    for it = 1: length(siteVec)
+        plot(Parm(:,1),pD(1:2:isim,itSite),'b--o');
+        hold on
+    end
+    ylabel('Click P(det)')
+    subplot(3,1,3)
+    for it = 1: length(siteVec)
+        plot(Parm(:,1),pD(2:2:isim,itSite),'r--o');
+        hold on
+    end
+    ylabel('Bin P(det)')
+    saveas(gca,fullfile(saveDir,[species,'_ParmClick.fig']))
+    save(fullfile(saveDir,sprintf('Parm_%dItr_%s.mat',...
+        N,species)),'-mat');
+end
