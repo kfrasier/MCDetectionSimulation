@@ -5,6 +5,7 @@ fignum = fignum +1;
 if (sParm  > 1)
     figure(fignum); fignum = fignum +1; clf;
     subplot(3,1,1);
+    title(siteVec);
     hold on
     for itSite = 1:length(siteVec)
         plot(Parm(:,1),dif(1:2:isim,itSite),'b--o');
@@ -26,7 +27,7 @@ if (sParm  > 1)
         hold on
     end
     ylabel('Bin P(det)')
-    saveas(gca,fullfile(saveDir,[species,Parmstring,'_Click.fig']))
-    save(fullfile(saveDir,sprintf('%s_%dItr_%s.mat',...
-        Parmstring,N,species)),'-mat');
+    saveas(gca,fullfile(saveDir,[siteVec{1,1},species,Parmstring,'.fig']))
+    save(fullfile(saveDir,sprintf('%s_%s_%dItr_%s.mat',...
+        siteVec{1,1},Parmstring,N,species)),'-mat');
 end
