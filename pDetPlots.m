@@ -1,4 +1,4 @@
-function pDetPlots(binnedPercDet,binnedCountsDet,pDetTotal,mRL,nper,id,itSite)
+function pDetPlots(mstring,binnedPercDet,binnedCountsDet,pDetTotal,mRL,nper,id,itSite)
 global saveDir site species maxRange fignum binVec RLbins thresh ...
     center dif 
 % Histogram of detectability as a function of range
@@ -37,8 +37,9 @@ ylabel(gca, 'Probability of Detection (%)','FontSize',16)
 %title({sprintf(siteVec{1,itSite},' ',...
 title({sprintf('Max Horiz. Range = %dm; mean P(det) = %1.3f%%; std = %1.3f%%', ...
     maxRange, nanmean(pDetTotal)*100, nanstd(pDetTotal)*100)},'FontSize',12)
-print(gcf,'-dpng','-r300',fullfile(saveDir,[site,'_',species,'_clickMod_pDet.png']))
-saveas(gca,fullfile(saveDir,[site,'_',species,'_pDet.fig']))
+print(gcf,'-dpng','-r300',fullfile(saveDir,...
+    [site,'_',species,mstring,'_clickMod_pDet.png']))
+saveas(gca,fullfile(saveDir,[site,'_',species,mstring,'_pDet.fig']))
 
 % plot #det versus range
 figure(fignum); fignum = fignum +1; clf;
@@ -58,8 +59,9 @@ xlabel(gca,'Horizontal Range (m)','FontSize',16)
 ylabel(gca, '# of detections','FontSize',16)
 %title(polarFile)
 title(site);
-print(gcf,'-dpng','-r300',fullfile(saveDir,[site,'_',species,'_detCountRange.png']))
-saveas(gca,fullfile(saveDir,[site,'_',species,'_detCountRange.fig']))
+print(gcf,'-dpng','-r300',fullfile(saveDir,...
+    [site,'_',species,mstring,'_detCountRange.png']))
+saveas(gca,fullfile(saveDir,[site,'_',species,mstring,'_detCountRange.fig']))
 
 %plot Percent det versus RL dBpp
 figure(fignum); fignum = fignum +1; clf;
@@ -72,8 +74,9 @@ xlabel(gca,'RL (dB_p_p re 1\muPa)','FontSize',16)
 ylabel(gca, 'Percent of detections','FontSize',16)
 set(gca,'FontSize',12)
 title(site);
-print(gcf,'-dpng','-r300',fullfile(saveDir,[site,'_',species,'_RLdist.png']))
-saveas(gca,fullfile(saveDir,[site,'_',species,'_RLdist.fig']))
+print(gcf,'-dpng','-r300',fullfile(saveDir,...
+    [site,'_',species,mstring,'_RLdist.png']))
+saveas(gca,fullfile(saveDir,[site,'_',species,mstring,'_RLdist.fig']))
 
 % Percent det versus RL as Log plot
 %note -16 is to correct for 100kHz data versus fullband
@@ -90,8 +93,9 @@ set(gca,'FontSize',12)
 hold on;
 plot(center,nper,'b--o'); % measured data
 title([site,' Error= ',num2str(dif(id,itSite))]);
-print(gcf,'-dpng','-r300',fullfile(saveDir,[site,'_',species,'_RLlog.png']))
-saveas(gca,fullfile(saveDir,[site,'_',species,'_RLlog.fig']))
+print(gcf,'-dpng','-r300',fullfile(saveDir,...
+    [site,'_',species,mstring,'_RLlog.png']))
+saveas(gca,fullfile(saveDir,[site,'_',species,mstring,'_RLlog.fig']))
 %
 % save(fullfile(saveDir,sprintf('Model_%dItr_%s.mat',...
 %     itr_n,species)),'-mat');

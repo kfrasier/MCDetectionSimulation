@@ -27,11 +27,11 @@ global n N maxRange thresh RLbins botbin topbin fignum spVec binVec ...
     nrr rd_all rr rr_int sd sortedTLVec thisAngle ...  %Global for TL calculation
     lnper center lnbper inot ibnot %Global for error
 %Parameters
-%siteVec = {'DT','GC','MC'};
-siteVec = {'MC'}; 
-fignum = 0; % if fignum = 0 make no figures
+siteVec = {'DT','GC','MC'};
+%siteVec = {'MC'}; 
+fignum = 100; % if fignum = 0 make no figures
 n = 500; % the number of model runs in the probability distribution
-N = 10000; % simulate this many points per model run usually 100000
+N = 100000; % simulate this many points per model run usually 100000
 maxRange = 1000; % in meters
 binVec = 0:100:maxRange;
 thresh = 132; % click detection threshold (amplitude in dB pp)
@@ -40,19 +40,19 @@ spVec = {'kogia'}; itSp = 1; species = spVec{itSp};
 % Parameters that can have multiple values have %***
 % Parameters used by both Click and Group
 diveDepth = [450,100]; %*** Parms1
-% diveDepth = [400:50:500]'; %***
+% diveDepth = [350:5:550]'; %***
 %     div2 = 100*ones(1,length(diveDepth));
 %     diveDepth = [diveDepth,div2'];
 sdiveDepth = size(diveDepth);
 diveDepths = [25,25];
-%SL = [210,10];  %**** Parms2
-SL = [205:5:215]'; %***
-    sl2 = 10*ones(1,length(SL));
-    SL = [SL,sl2'];
+SL = [210,10];  %**** Parms2
+% SL = [205:5:215]'; %***
+%     sl2 = 10*ones(1,length(SL));
+%     SL = [SL,sl2'];
 siSL = size(SL);
 SLs = [2,3];
 descAngle = [65,4]; %*** Parms3
-% descAngle = [55:1:85]'; %***
+% descAngle = [55:1:75]'; %***
 %     des2 = 4*ones(1,length(descAngle));
 %     descAngle = [descAngle,des2'];
 sdescAngle = size(descAngle);
@@ -69,8 +69,8 @@ minAmpSm = [33,5]; minAmpBm = [38,5];
 minBeamAmpm = [33,3];
 minBeamAmps = [2,3];
 % Parameters Unique to the Click Method
-botAngle = [20,5]; %*** Parms5
-% botAngle = [15:5:45]'; %***
+botAngle = [25,5]; %*** Parms5
+% botAngle = [15:5:40]'; %***
 % bot2 = 5*ones(1,length(botAngle));
 % botAngle = [botAngle,bot2'];
 sbotAngle  = size(botAngle);
@@ -90,7 +90,7 @@ srotVertDive = size(rotVertDivem);
 rotVertDives = [5,10];
 %
 TLprofile_directory = 'E:\Data\ESME\';
-saveDir = 'E:\Data\John Reports\Kogia\';
+saveDir = 'E:\Data\John Reports\KogiaFinalX\';
 % Check if output directory exits
 if ~exist(saveDir,'dir')
     mkdir(saveDir)
@@ -223,8 +223,10 @@ for itSite = 1:length(siteVec)
                             if fignum > 0
                                 save(fullfile(saveDir,sprintf('%s_Model_%dItr_%s.mat',...
                                     site,N,species)),'-mat');
-                                pDetPlots(binnedPercDet,binnedCountsDet,pDetTotal,mRL,nper,isim-1,itSite);
-                                pDetPlots(binnedPercDetb,binnedCountsDetb,pDetTotalb,mRLb,nbper,isim,itSite)
+                                pDetPlots('click',binnedPercDet,binnedCountsDet,...
+                                    pDetTotal,mRL,nper,isim-1,itSite);
+                                pDetPlots('bin',binnedPercDetb,binnedCountsDetb,...
+                                    pDetTotalb,mRLb,nbper,isim,itSite)
                             end
                         end
                     end
